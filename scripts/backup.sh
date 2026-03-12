@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$ROOT_DIR"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+# shellcheck source=lib/common.sh
+source "$SCRIPT_DIR/lib/common.sh"
+ensure_root_dir
 
 BACKUP_DIR="$ROOT_DIR/backups"
 TIMESTAMP="$(date '+%Y%m%d-%H%M%S')"
@@ -20,22 +23,6 @@ usage() {
   --allow-live  允许在容器仍在运行时继续备份
   --keep N      仅保留 backups/ 目录下最近 N 份默认命名备份
 EOF
-}
-
-require_command() {
-  if ! command -v "$1" >/dev/null 2>&1; then
-    printf '缺少依赖命令：%s\n' "$1" >&2
-    exit 1
-  fi
-}
-
-get_running_services() {
-  local output
-  if ! output="$(docker compose ps --services --status running 2>&1)"; then
-    printf '无法检查容器运行状态：%s\n' "$output" >&2
-    exit 1
-  fi
-  printf '%s' "$output"
 }
 
 while [[ $# -gt 0 ]]; do
@@ -98,7 +85,8 @@ require_command mktemp
 
 mkdir -p "$ARCHIVE_DIR"
 
-RUNNING_SERVICES="$(get_running_services)"
+RUNNING_SERVICES="$(get_docker_running_services)"
+BACKUP_MODE="offline"
 if [[ -n "$RUNNING_SERVICES" && "$ALLOW_LIVE_BACKUP" != "true" ]]; then
   cat <<EOF
 检测到以下容器仍在运行：
@@ -114,18 +102,13 @@ EOF
 fi
 
 if [[ -n "$RUNNING_SERVICES" && "$ALLOW_LIVE_BACKUP" == "true" ]]; then
+  BACKUP_MODE="live"
   echo "警告：当前正在执行在线备份，归档中的数据库和运行时文件可能不是严格一致快照。"
 fi
 
-# 把备份元信息写进归档，方便后续核对来源和内容。
-cat >"$TMP_DIR/manifest.txt" <<EOF
-backup_created_at=$(date '+%Y-%m-%d %H:%M:%S %z')
-project_root=$ROOT_DIR
-archive_name=$ARCHIVE_NAME
-docker_compose_version=$(docker compose version --short 2>/dev/null || echo unknown)
-included_paths=.env compose.yaml data napcat/config napcat/qq
-running_services=$(printf '%s' "$RUNNING_SERVICES" | tr '\n' ',' | sed 's/,$//')
-EOF
+if [[ -z "$RUNNING_SERVICES" ]]; then
+  BACKUP_MODE="offline"
+fi
 
 INCLUDE_PATHS=(
   "compose.yaml"
@@ -147,6 +130,17 @@ if [[ ${#EXISTING_PATHS[@]} -eq 0 ]]; then
   echo "没有找到可备份的路径，请先确认项目已初始化。" >&2
   exit 1
 fi
+
+# 把备份元信息写进归档，方便后续核对来源和内容。
+cat >"$TMP_DIR/manifest.txt" <<EOF
+backup_created_at=$(date '+%Y-%m-%d %H:%M:%S %z')
+project_root=$ROOT_DIR
+archive_name=$ARCHIVE_NAME
+docker_compose_version=$(docker compose version --short 2>/dev/null || echo unknown)
+backup_mode=$BACKUP_MODE
+included_paths=${EXISTING_PATHS[*]}
+running_services=$(printf '%s' "$RUNNING_SERVICES" | tr '\n' ',' | sed 's/,$//')
+EOF
 
 tar -czf "$ARCHIVE_PATH" -C "$ROOT_DIR" "${EXISTING_PATHS[@]}" -C "$TMP_DIR" "manifest.txt"
 

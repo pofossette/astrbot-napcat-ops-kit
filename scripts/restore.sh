@@ -1,8 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$ROOT_DIR"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+# shellcheck source=lib/common.sh
+source "$SCRIPT_DIR/lib/common.sh"
+ensure_root_dir
+TMP_DIR="$(mktemp -d)"
+STAGE_DIR="$TMP_DIR/stage"
+ROLLBACK_DIR="$TMP_DIR/rollback"
+RESTORE_STARTED="false"
 
 usage() {
   cat <<'EOF'
@@ -23,22 +30,6 @@ usage() {
 EOF
 }
 
-require_command() {
-  if ! command -v "$1" >/dev/null 2>&1; then
-    printf '缺少依赖命令：%s\n' "$1" >&2
-    exit 1
-  fi
-}
-
-get_running_services() {
-  local output
-  if ! output="$(docker compose ps --services --status running 2>&1)"; then
-    printf '无法检查容器运行状态：%s\n' "$output" >&2
-    exit 1
-  fi
-  printf '%s' "$output"
-}
-
 contains_item() {
   local needle="$1"
   shift
@@ -50,6 +41,25 @@ contains_item() {
   done
   return 1
 }
+
+cleanup() {
+  local exit_code=$?
+  local path
+
+  if [[ "$exit_code" -ne 0 && "$RESTORE_STARTED" == "true" ]]; then
+    for path in "${CLEAN_PATHS[@]:-}"; do
+      rm -rf "$ROOT_DIR/$path"
+      if [[ -e "$ROLLBACK_DIR/$path" ]]; then
+        mkdir -p "$(dirname "$ROOT_DIR/$path")"
+        mv "$ROLLBACK_DIR/$path" "$ROOT_DIR/$path"
+      fi
+    done
+  fi
+
+  rm -rf "$TMP_DIR"
+}
+
+trap cleanup EXIT
 
 if [[ $# -lt 1 ]]; then
   usage
@@ -107,7 +117,7 @@ fi
 require_command docker
 require_command tar
 
-RUNNING_SERVICES="$(get_running_services)"
+RUNNING_SERVICES="$(get_docker_running_services)"
 if [[ -n "$RUNNING_SERVICES" ]]; then
   cat <<EOF
 检测到以下容器仍在运行：
@@ -171,12 +181,30 @@ for path in "${ARCHIVE_CHECK_PATHS[@]}"; do
   fi
 done
 
-# 恢复前先清空目标路径，避免残留文件和历史状态混入。
-for path in "${CLEAN_PATHS[@]}"; do
-  rm -rf "$ROOT_DIR/$path"
+mkdir -p "$STAGE_DIR" "$ROLLBACK_DIR"
+tar -xzf "$ARCHIVE_PATH" -C "$STAGE_DIR" "${EXTRACT_PATHS[@]}"
+
+for path in "${EXTRACT_PATHS[@]}"; do
+  if [[ ! -e "$STAGE_DIR/$path" ]]; then
+    printf '备份文件解压后缺少必要路径：%s\n' "$path" >&2
+    exit 1
+  fi
 done
 
-tar -xzf "$ARCHIVE_PATH" -C "$ROOT_DIR" "${EXTRACT_PATHS[@]}"
+RESTORE_STARTED="true"
+
+# 先把现有数据移到回滚目录，再用已解压的目标内容整体替换，避免中途失败时留下半恢复状态。
+for path in "${CLEAN_PATHS[@]}"; do
+  if [[ -e "$ROOT_DIR/$path" ]]; then
+    mkdir -p "$(dirname "$ROLLBACK_DIR/$path")"
+    mv "$ROOT_DIR/$path" "$ROLLBACK_DIR/$path"
+  fi
+
+  mkdir -p "$(dirname "$ROOT_DIR/$path")"
+  mv "$STAGE_DIR/$path" "$ROOT_DIR/$path"
+done
+
+RESTORE_STARTED="false"
 
 printf '备份已恢复：%s\n' "$ARCHIVE_PATH"
 printf '已恢复内容：%s\n' "${RESTORE_ITEMS[*]}"

@@ -4,9 +4,18 @@
 
 ## 首次使用
 
-如果你是第一次部署，直接按下面顺序执行，不需要先看后面的细节。
+如果你是第一次部署，默认直接运行交互式入口即可，其他脚本命令都可以视为高级用法。
 
 ### 1. 启动容器
+
+推荐方式：
+
+```bash
+chmod +x scripts/*.sh
+./scripts/manage.sh
+```
+
+如果你更偏好直接执行脚本命令，再参考下面两种启动方式。
 
 中国大陆服务器建议直接用国内模式：
 
@@ -20,13 +29,6 @@ chmod +x scripts/*.sh
 ```bash
 chmod +x scripts/*.sh
 ./scripts/up.sh
-```
-
-如果你希望用一个交互式入口来完成启动、停止、备份、恢复和查看日志，也可以直接运行：
-
-```bash
-chmod +x scripts/*.sh
-./scripts/manage.sh
 ```
 
 ### 2. 登录 NapCat
@@ -114,13 +116,20 @@ chmod +x scripts/*.sh
 ├── napcat
 │   ├── config
 │   └── qq
-└── scripts
+├── scripts
     ├── backup.sh
     ├── down.sh
+    ├── lib
+    │   ├── archive.sh
+    │   ├── common.sh
+    │   └── ui.sh
     ├── logs.sh
     ├── manage.sh
     ├── restore.sh
     └── up.sh
+└── tests
+    └── shell
+        └── smoke.sh
 ```
 
 ## 前提
@@ -168,7 +177,7 @@ chmod +x scripts/*.sh
 
 这会优先用 `.env.domestic.example` 生成 `.env`。
 
-如果你不想记多个命令，也可以直接运行：
+如果你不想记多个命令，推荐直接运行：
 
 ```bash
 ./scripts/manage.sh
@@ -177,10 +186,15 @@ chmod +x scripts/*.sh
 它会提供交互式菜单，集中处理：
 
 - 启动服务
+- 重启服务
 - 停止服务
 - 查看状态
-- 查看日志
-- 创建备份
+- 查看最近日志
+- 持续跟随日志
+- 一键安全备份
+- 自定义备份
+- 验证备份
+- 查看备份详情
 - 恢复备份
 
 ## 访问地址
@@ -459,6 +473,18 @@ WATCHTOWER_IMAGE=<你的镜像地址>/containrrr/watchtower:latest
 ```
 
 这会在 `./backups` 下仅保留最近 7 份默认命名的备份文件。
+
+如果你通过 `./scripts/manage.sh` 操作，菜单里还提供：
+
+- 一键安全备份：自动停服务、离线备份、恢复启动
+- 备份校验：检查 `manifest.txt` 和归档中声明的实际内容
+- 备份详情：查看归档大小和 `manifest.txt`
+
+如果你要快速自检脚本主流程，可以运行：
+
+```bash
+./tests/shell/smoke.sh
+```
 
 恢复前建议先停服务，避免运行中的容器继续写入数据：
 

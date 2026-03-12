@@ -1,17 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$ROOT_DIR"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+# shellcheck source=lib/common.sh
+source "$SCRIPT_DIR/lib/common.sh"
+ensure_root_dir
 
 MODE="${1:-default}"
-
-require_command() {
-  if ! command -v "$1" >/dev/null 2>&1; then
-    printf '缺少依赖命令：%s\n' "$1" >&2
-    exit 1
-  fi
-}
 
 require_command docker
 

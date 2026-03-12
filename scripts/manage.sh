@@ -1,53 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$ROOT_DIR"
-
-if [[ -t 1 ]]; then
-  COLOR_RESET=$'\033[0m'
-  COLOR_TITLE=$'\033[1;36m'
-  COLOR_MENU=$'\033[1;34m'
-  COLOR_OK=$'\033[1;32m'
-  COLOR_WARN=$'\033[1;33m'
-  COLOR_ERR=$'\033[1;31m'
-  COLOR_HINT=$'\033[0;37m'
-else
-  COLOR_RESET=""
-  COLOR_TITLE=""
-  COLOR_MENU=""
-  COLOR_OK=""
-  COLOR_WARN=""
-  COLOR_ERR=""
-  COLOR_HINT=""
-fi
-
-require_command() {
-  if ! command -v "$1" >/dev/null 2>&1; then
-    printf '缺少依赖命令：%s\n' "$1" >&2
-    exit 1
-  fi
-}
-
-print_info() {
-  printf '%s%s%s\n' "$COLOR_HINT" "$1" "$COLOR_RESET"
-}
-
-print_ok() {
-  printf '%s%s%s\n' "$COLOR_OK" "$1" "$COLOR_RESET"
-}
-
-print_warn() {
-  printf '%s%s%s\n' "$COLOR_WARN" "$1" "$COLOR_RESET"
-}
-
-print_error() {
-  printf '%s%s%s\n' "$COLOR_ERR" "$1" "$COLOR_RESET" >&2
-}
-
-pause() {
-  read -r -p "按回车继续..." _
-}
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+# shellcheck source=lib/common.sh
+source "$SCRIPT_DIR/lib/common.sh"
+# shellcheck source=lib/archive.sh
+source "$SCRIPT_DIR/lib/archive.sh"
+# shellcheck source=lib/ui.sh
+source "$SCRIPT_DIR/lib/ui.sh"
+ensure_root_dir
 
 run_script() {
   local script="$1"
@@ -55,19 +17,8 @@ run_script() {
   "$ROOT_DIR/scripts/$script" "$@"
 }
 
-run_action() {
-  local description="$1"
-  shift
-
-  print_info "正在执行：$description"
-  if "$@"; then
-    print_ok "执行完成：$description"
-    return 0
-  fi
-
-  print_error "执行失败：$description"
-  print_warn "如果提示和 Docker 权限、运行中容器或路径有关，请先按脚本提示处理后重试。"
-  return 1
+get_running_services() {
+  get_docker_running_services
 }
 
 show_header() {
@@ -76,10 +27,15 @@ show_header() {
   printf '%s2.%s 启动服务（国内模式）\n' "$COLOR_MENU" "$COLOR_RESET"
   printf '%s3.%s 查看服务状态\n' "$COLOR_MENU" "$COLOR_RESET"
   printf '%s4.%s 停止服务\n' "$COLOR_MENU" "$COLOR_RESET"
-  printf '%s5.%s 查看日志\n' "$COLOR_MENU" "$COLOR_RESET"
-  printf '%s6.%s 创建备份\n' "$COLOR_MENU" "$COLOR_RESET"
-  printf '%s7.%s 恢复备份\n' "$COLOR_MENU" "$COLOR_RESET"
-  printf '%s8.%s 显示访问说明\n' "$COLOR_MENU" "$COLOR_RESET"
+  printf '%s5.%s 重启服务\n' "$COLOR_MENU" "$COLOR_RESET"
+  printf '%s6.%s 查看最近日志\n' "$COLOR_MENU" "$COLOR_RESET"
+  printf '%s7.%s 持续跟随日志\n' "$COLOR_MENU" "$COLOR_RESET"
+  printf '%s8.%s 一键安全备份\n' "$COLOR_MENU" "$COLOR_RESET"
+  printf '%s9.%s 自定义备份\n' "$COLOR_MENU" "$COLOR_RESET"
+  printf '%s10.%s 验证备份\n' "$COLOR_MENU" "$COLOR_RESET"
+  printf '%s11.%s 备份详情\n' "$COLOR_MENU" "$COLOR_RESET"
+  printf '%s12.%s 恢复备份\n' "$COLOR_MENU" "$COLOR_RESET"
+  printf '%s13.%s 显示访问说明\n' "$COLOR_MENU" "$COLOR_RESET"
   printf '%s0.%s 退出\n' "$COLOR_MENU" "$COLOR_RESET"
 }
 
@@ -100,19 +56,50 @@ show_status() {
 }
 
 choose_log_service() {
+  local mode="$1"
+  local tail_lines=""
+
   echo
   printf '%s日志选项：%s\n' "$COLOR_TITLE" "$COLOR_RESET"
   printf '%s1.%s 全部服务\n' "$COLOR_MENU" "$COLOR_RESET"
   printf '%s2.%s astrbot\n' "$COLOR_MENU" "$COLOR_RESET"
   printf '%s3.%s napcat\n' "$COLOR_MENU" "$COLOR_RESET"
   printf '%s4.%s watchtower\n' "$COLOR_MENU" "$COLOR_RESET"
+  if [[ "$mode" == "recent" ]]; then
+    read -r -p "最近日志行数 [默认 100]: " tail_lines
+    tail_lines="${tail_lines:-100}"
+  fi
   read -r -p "请选择 [1-4，默认 1]: " log_choice
 
   case "${log_choice:-1}" in
-    1) run_script "logs.sh" ;;
-    2) run_script "logs.sh" "astrbot" ;;
-    3) run_script "logs.sh" "napcat" ;;
-    4) run_script "logs.sh" "watchtower" ;;
+    1)
+      if [[ "$mode" == "recent" ]]; then
+        run_action "查看最近日志" run_script "logs.sh" "--no-follow" "--tail" "$tail_lines"
+      else
+        run_script "logs.sh"
+      fi
+      ;;
+    2)
+      if [[ "$mode" == "recent" ]]; then
+        run_action "查看 astrbot 最近日志" run_script "logs.sh" "--no-follow" "--tail" "$tail_lines" "astrbot"
+      else
+        run_script "logs.sh" "astrbot"
+      fi
+      ;;
+    3)
+      if [[ "$mode" == "recent" ]]; then
+        run_action "查看 napcat 最近日志" run_script "logs.sh" "--no-follow" "--tail" "$tail_lines" "napcat"
+      else
+        run_script "logs.sh" "napcat"
+      fi
+      ;;
+    4)
+      if [[ "$mode" == "recent" ]]; then
+        run_action "查看 watchtower 最近日志" run_script "logs.sh" "--no-follow" "--tail" "$tail_lines" "watchtower"
+      else
+        run_script "logs.sh" "watchtower"
+      fi
+      ;;
     *)
       print_error "无效选择。"
       ;;
@@ -146,8 +133,53 @@ create_backup() {
   run_action "创建备份" run_script "backup.sh" "${args[@]}"
 }
 
+safe_backup() {
+  local archive_path keep_count restart_needed="false"
+  local args=()
+  local running_services
+
+  echo
+  print_info "该流程会在必要时自动停止服务，创建离线备份，再恢复服务。"
+  read -r -p "备份输出路径（默认留空，写入 ./backups）: " archive_path
+  read -r -p "是否保留最近 N 份默认命名备份？留空表示不清理: " keep_count
+
+  if [[ -n "$archive_path" ]]; then
+    args+=("$archive_path")
+  fi
+  if [[ -n "$keep_count" ]]; then
+    args+=("--keep" "$keep_count")
+  fi
+
+  running_services="$(get_running_services)" || return 1
+  if [[ -n "$running_services" ]]; then
+    restart_needed="true"
+    print_warn "检测到运行中容器，将先停止服务后再备份。"
+    run_action "停止服务" run_script "down.sh" || return 1
+  fi
+
+  if ! run_action "创建离线备份" run_script "backup.sh" "${args[@]}"; then
+    if [[ "$restart_needed" == "true" ]]; then
+      print_warn "备份失败，正在尝试恢复服务。"
+      run_action "恢复启动服务" run_script "up.sh" || true
+    fi
+    return 1
+  fi
+
+  if [[ "$restart_needed" == "true" ]]; then
+    run_action "恢复启动服务" run_script "up.sh" || return 1
+  fi
+}
+
 list_backups() {
-  find "$ROOT_DIR/backups" -maxdepth 1 -type f -name '*.tar.gz' -printf '%TY-%Tm-%Td %TH:%TM  %p\n' 2>/dev/null | sort -r || true
+  list_backup_table
+}
+
+show_backup_details() {
+  local archive_path="$1"
+
+  run_action "查看备份详情" ls -lh "$archive_path" || return 1
+  echo
+  run_action "读取备份 manifest" print_manifest "$archive_path"
 }
 
 select_backup_path() {
@@ -156,11 +188,9 @@ select_backup_path() {
 
   SELECTED_BACKUP_PATH=""
 
-  if [[ -d "$ROOT_DIR/backups" ]]; then
-    while IFS= read -r line; do
-      backups+=("$line")
-    done < <(find "$ROOT_DIR/backups" -maxdepth 1 -type f -name '*.tar.gz' | sort -r)
-  fi
+  while IFS= read -r line; do
+    backups+=("$line")
+  done < <(list_backup_files)
 
   if (( ${#backups[@]} == 0 )); then
     print_warn "未找到 ./backups 下的备份文件，请手动输入完整路径。"
@@ -238,7 +268,7 @@ restore_backup() {
 
 while true; do
   show_header
-  read -r -p "请选择操作 [0-8]: " choice
+  read -r -p "请选择操作 [0-13]: " choice
 
   case "${choice:-}" in
     1)
@@ -258,17 +288,52 @@ while true; do
       pause
       ;;
     5)
-      choose_log_service
+      run_action "重启服务" run_script "down.sh" && run_action "启动服务" run_script "up.sh"
+      pause
       ;;
     6)
-      create_backup
+      choose_log_service "recent"
       pause
       ;;
     7)
-      restore_backup
+      choose_log_service "follow"
       pause
       ;;
     8)
+      safe_backup
+      pause
+      ;;
+    9)
+      create_backup
+      pause
+      ;;
+    10)
+      echo
+      select_backup_path || {
+        pause
+        continue
+      }
+      if verify_backup_archive "$SELECTED_BACKUP_PATH"; then
+        print_ok "备份校验通过：$SELECTED_BACKUP_PATH"
+      else
+        print_error "备份校验失败：$SELECTED_BACKUP_PATH"
+      fi
+      pause
+      ;;
+    11)
+      echo
+      select_backup_path || {
+        pause
+        continue
+      }
+      show_backup_details "$SELECTED_BACKUP_PATH"
+      pause
+      ;;
+    12)
+      restore_backup
+      pause
+      ;;
+    13)
       show_access_help
       pause
       ;;
