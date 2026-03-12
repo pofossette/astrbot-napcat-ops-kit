@@ -359,6 +359,18 @@ WATCHTOWER_IMAGE=<你的镜像地址>/containrrr/watchtower:latest
 ./scripts/backup.sh
 ```
 
+在线备份（不停止容器）：
+
+```bash
+./scripts/backup.sh --allow-live
+```
+
+创建备份并仅保留最近 7 份：
+
+```bash
+./scripts/backup.sh --keep 7
+```
+
 从备份恢复：
 
 ```bash
@@ -391,6 +403,8 @@ WATCHTOWER_IMAGE=<你的镜像地址>/containrrr/watchtower:latest
 ./scripts/backup.sh
 ```
 
+如果容器仍在运行，脚本默认会中止并提示先停服务，以避免 SQLite 或运行时文件拿到不一致快照。
+
 默认会生成：
 
 - `./backups/qqbot-backup-时间戳.tar.gz`
@@ -409,6 +423,20 @@ WATCHTOWER_IMAGE=<你的镜像地址>/containrrr/watchtower:latest
 ./scripts/backup.sh /tmp/qqbot-prod-backup.tar.gz
 ```
 
+如果你确认接受在线备份的风险，可以显式加上：
+
+```bash
+./scripts/backup.sh --allow-live
+```
+
+如果你希望自动清理历史备份，可以加上保留数量：
+
+```bash
+./scripts/backup.sh --keep 7
+```
+
+这会在 `./backups` 下仅保留最近 7 份默认命名的备份文件。
+
 恢复前建议先停服务，避免运行中的容器继续写入数据：
 
 ```bash
@@ -417,11 +445,21 @@ WATCHTOWER_IMAGE=<你的镜像地址>/containrrr/watchtower:latest
 ./scripts/up.sh
 ```
 
+如果你只想恢复某一部分数据，也可以使用 `--only`：
+
+```bash
+./scripts/restore.sh ./backups/qqbot-backup-YYYYmmdd-HHMMSS.tar.gz --force --only data
+./scripts/restore.sh ./backups/qqbot-backup-YYYYmmdd-HHMMSS.tar.gz --force --only napcat-qq
+./scripts/restore.sh ./backups/qqbot-backup-YYYYmmdd-HHMMSS.tar.gz --force --only config-files
+```
+
 注意：
 
-- `restore.sh` 会覆盖当前的 `data`、`napcat/config` 和 `napcat/qq`。
+- `restore.sh` 会先校验备份包结构，再覆盖目标路径。
+- 全量恢复会覆盖当前的 `.env`、`compose.yaml`、`data`、`napcat/config` 和 `napcat/qq`。
 - 恢复不会自动保留你本地当前目录中的旧数据；如果要双保险，先手动再备份一次。
 - 备份文件只包含业务数据和配置，不包含 Docker 镜像层；恢复后如本机无镜像，`./scripts/up.sh` 会重新拉取。
+- 所有脚本都会先检查基础依赖，例如 `docker`、`tar`。
 
 ## 风险和注意事项
 

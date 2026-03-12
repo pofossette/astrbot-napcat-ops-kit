@@ -6,6 +6,15 @@ cd "$ROOT_DIR"
 
 MODE="${1:-default}"
 
+require_command() {
+  if ! command -v "$1" >/dev/null 2>&1; then
+    printf '缺少依赖命令：%s\n' "$1" >&2
+    exit 1
+  fi
+}
+
+require_command docker
+
 mkdir -p data napcat/config napcat/qq
 
 if [[ ! -f .env ]]; then
@@ -22,18 +31,18 @@ docker compose up -d
 
 cat <<'EOF'
 
-Services started.
+服务已启动。
 
-Next:
-1. Open AstrBot: http://<server-ip>:6185
-2. Open NapCat:  http://<server-ip>:6099/webui
-3. Login QQ in NapCat WebUI
-4. In AstrBot create a OneBot v11 bot:
+下一步：
+1. 打开 AstrBot: http://<服务器IP>:6185
+2. 打开 NapCat:  http://<服务器IP>:6099/webui
+3. 在 NapCat WebUI 中登录 QQ
+4. 在 AstrBot 中创建一个 OneBot v11 机器人：
    host=0.0.0.0 port=6199
-5. In NapCat add WebSockets Client:
+5. 在 NapCat 中添加 WebSockets Client：
    url=ws://astrbot:6199/ws
 
-AstrBot default credentials:
-username: astrbot
-password: astrbot
+AstrBot 默认账号：
+用户名：astrbot
+密码：astrbot
 EOF
