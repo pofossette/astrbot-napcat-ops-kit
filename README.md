@@ -108,8 +108,10 @@ chmod +x scripts/*.sh
 │   ├── config
 │   └── qq
 └── scripts
+    ├── backup.sh
     ├── down.sh
     ├── logs.sh
+    ├── restore.sh
     └── up.sh
 ```
 
@@ -351,6 +353,20 @@ WATCHTOWER_IMAGE=<你的镜像地址>/containrrr/watchtower:latest
 ./scripts/logs.sh napcat
 ```
 
+创建备份：
+
+```bash
+./scripts/backup.sh
+```
+
+从备份恢复：
+
+```bash
+./scripts/down.sh
+./scripts/restore.sh ./backups/qqbot-backup-YYYYmmdd-HHMMSS.tar.gz --force
+./scripts/up.sh
+```
+
 停止：
 
 ```bash
@@ -364,6 +380,48 @@ WATCHTOWER_IMAGE=<你的镜像地址>/containrrr/watchtower:latest
 - QQ 登录态目录：`./napcat/qq`
 
 重建容器不会丢失这些目录中的数据。
+
+## 备份与恢复
+
+项目内的持久化数据都落在宿主机目录，因此备份不需要导出容器，只需要打包这些目录和当前配置文件。
+
+默认备份命令：
+
+```bash
+./scripts/backup.sh
+```
+
+默认会生成：
+
+- `./backups/qqbot-backup-时间戳.tar.gz`
+
+备份内容包括：
+
+- `.env`
+- `compose.yaml`
+- `./data`
+- `./napcat/config`
+- `./napcat/qq`
+
+如果你想自定义输出文件名，也可以直接传路径：
+
+```bash
+./scripts/backup.sh /tmp/qqbot-prod-backup.tar.gz
+```
+
+恢复前建议先停服务，避免运行中的容器继续写入数据：
+
+```bash
+./scripts/down.sh
+./scripts/restore.sh ./backups/qqbot-backup-YYYYmmdd-HHMMSS.tar.gz --force
+./scripts/up.sh
+```
+
+注意：
+
+- `restore.sh` 会覆盖当前的 `data`、`napcat/config` 和 `napcat/qq`。
+- 恢复不会自动保留你本地当前目录中的旧数据；如果要双保险，先手动再备份一次。
+- 备份文件只包含业务数据和配置，不包含 Docker 镜像层；恢复后如本机无镜像，`./scripts/up.sh` 会重新拉取。
 
 ## 风险和注意事项
 
