@@ -22,6 +22,13 @@ chmod +x scripts/*.sh
 ./scripts/up.sh
 ```
 
+如果你希望用一个交互式入口来完成启动、停止、备份、恢复和查看日志，也可以直接运行：
+
+```bash
+chmod +x scripts/*.sh
+./scripts/manage.sh
+```
+
 ### 2. 登录 NapCat
 
 打开：
@@ -111,6 +118,7 @@ chmod +x scripts/*.sh
     ├── backup.sh
     ├── down.sh
     ├── logs.sh
+    ├── manage.sh
     ├── restore.sh
     └── up.sh
 ```
@@ -159,6 +167,21 @@ chmod +x scripts/*.sh
 ```
 
 这会优先用 `.env.domestic.example` 生成 `.env`。
+
+如果你不想记多个命令，也可以直接运行：
+
+```bash
+./scripts/manage.sh
+```
+
+它会提供交互式菜单，集中处理：
+
+- 启动服务
+- 停止服务
+- 查看状态
+- 查看日志
+- 创建备份
+- 恢复备份
 
 ## 访问地址
 

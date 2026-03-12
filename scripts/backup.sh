@@ -29,6 +29,15 @@ require_command() {
   fi
 }
 
+get_running_services() {
+  local output
+  if ! output="$(docker compose ps --services --status running 2>&1)"; then
+    printf '无法检查容器运行状态：%s\n' "$output" >&2
+    exit 1
+  fi
+  printf '%s' "$output"
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --allow-live)
@@ -89,7 +98,7 @@ require_command mktemp
 
 mkdir -p "$ARCHIVE_DIR"
 
-RUNNING_SERVICES="$(docker compose ps --services --status running 2>/dev/null || true)"
+RUNNING_SERVICES="$(get_running_services)"
 if [[ -n "$RUNNING_SERVICES" && "$ALLOW_LIVE_BACKUP" != "true" ]]; then
   cat <<EOF
 检测到以下容器仍在运行：
