@@ -3,12 +3,11 @@ from __future__ import annotations
 
 import argparse
 import os
-import shutil
 import subprocess
 import sys
 from pathlib import Path
 
-from deploy_lib import DeployError
+from deploy_lib import DeployError, require_docker_compose, subprocess_error_detail
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 DATA_DIRS = (
@@ -42,12 +41,6 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help="Initialize .env from .env.domestic.example when .env is missing.",
     )
     return parser.parse_args(argv)
-
-
-def require_command(command: str) -> None:
-    if shutil.which(command):
-        return
-    raise DeployError(f"缺少依赖命令：{command}")
 
 
 def ensure_directories() -> None:
@@ -85,17 +78,23 @@ def initialize_env(domestic: bool) -> None:
 
 
 def run_compose_up() -> None:
-    subprocess.run(
-        ["docker", "compose", "up", "-d"],
-        cwd=ROOT_DIR,
-        check=True,
-    )
+    try:
+        subprocess.run(
+            ["docker", "compose", "up", "-d"],
+            cwd=ROOT_DIR,
+            text=True,
+            capture_output=True,
+            check=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        detail = subprocess_error_detail(exc)
+        raise DeployError(f"启动容器服务失败：{detail}") from exc
 
 
 def main(argv: list[str] | None = None) -> int:
     try:
         args = parse_args(argv or sys.argv[1:])
-        require_command("docker")
+        require_docker_compose()
         ensure_directories()
         initialize_env(domestic=args.domestic)
         run_compose_up()

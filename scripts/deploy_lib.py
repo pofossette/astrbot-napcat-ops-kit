@@ -98,6 +98,27 @@ def require_command(command: str) -> None:
     raise DeployError(f"缺少依赖命令：{command}")
 
 
+def subprocess_error_detail(exc: subprocess.CalledProcessError) -> str:
+    if exc.stderr:
+        return exc.stderr.strip()
+    if exc.stdout:
+        return exc.stdout.strip()
+    return str(exc)
+
+
+def require_docker_compose() -> None:
+    require_command("docker")
+    try:
+        run_command(["docker", "compose", "version"], capture_output=True)
+    except subprocess.CalledProcessError as exc:
+        detail = subprocess_error_detail(exc)
+        raise DeployError(
+            "当前环境不可用 `docker compose`。\n"
+            "请先安装 Docker Compose Plugin，或确认你的 Docker 版本已包含该子命令。\n"
+            f"原始错误：{detail}"
+        ) from exc
+
+
 def run_command(args: list[str], *, capture_output: bool = False, check: bool = True) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         args,
@@ -109,14 +130,14 @@ def run_command(args: list[str], *, capture_output: bool = False, check: bool = 
 
 
 def get_running_services() -> str:
-    require_command("docker")
+    require_docker_compose()
     try:
         result = run_command(
             ["docker", "compose", "ps", "--services", "--status", "running"],
             capture_output=True,
         )
     except subprocess.CalledProcessError as exc:
-        detail = exc.stderr.strip() or exc.stdout.strip() or str(exc)
+        detail = subprocess_error_detail(exc)
         raise DeployError(f"无法检查容器运行状态：{detail}") from exc
     return result.stdout.strip()
 
@@ -182,7 +203,7 @@ def verify_backup_archive(archive_path: Path) -> None:
 def command_up(domestic: bool = False) -> None:
     from up import ensure_directories, initialize_env, run_compose_up
 
-    require_command("docker")
+    require_docker_compose()
     ensure_directories()
     initialize_env(domestic=domestic)
     run_compose_up()
@@ -208,14 +229,18 @@ AstrBot 默认账号：
 
 
 def command_down() -> None:
-    require_command("docker")
+    require_docker_compose()
     print("正在停止容器服务...")
-    run_command(["docker", "compose", "down"])
+    try:
+        run_command(["docker", "compose", "down"], capture_output=True)
+    except subprocess.CalledProcessError as exc:
+        detail = subprocess_error_detail(exc)
+        raise DeployError(f"停止容器服务失败：{detail}") from exc
     print("容器服务已停止。")
 
 
 def command_logs(service: str = "", follow: bool = True, tail_lines: str = "") -> None:
-    require_command("docker")
+    require_docker_compose()
     args = ["docker", "compose", "logs"]
     if follow:
         args.append("-f")
@@ -226,11 +251,15 @@ def command_logs(service: str = "", follow: bool = True, tail_lines: str = "") -
         args.append(service)
     else:
         print("正在查看全部服务日志...")
-    run_command(args)
+    try:
+        run_command(args)
+    except subprocess.CalledProcessError as exc:
+        detail = subprocess_error_detail(exc)
+        raise DeployError(f"查看日志失败：{detail}") from exc
 
 
 def create_backup(archive_path: str = "", allow_live: bool = False, keep_count: str = "") -> Path:
-    require_command("docker")
+    require_docker_compose()
     require_command("tar")
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     archive = Path(archive_path) if archive_path else BACKUP_DIR / f"qqbot-backup-{timestamp}.tar.gz"
@@ -318,7 +347,7 @@ def restore_backup(archive_path: str, force: bool = False, restore_items: list[s
             "  ./scripts/restore.sh <backup.tar.gz> --force"
         )
 
-    require_command("docker")
+    require_docker_compose()
     require_command("tar")
     running_services = get_running_services()
     if running_services:
@@ -411,7 +440,10 @@ def run_action(description: str, action: Callable[[], None]) -> bool:
         action()
     except (DeployError, subprocess.CalledProcessError) as exc:
         print_error(f"执行失败：{description}")
-        detail = str(exc).strip()
+        if isinstance(exc, subprocess.CalledProcessError):
+            detail = subprocess_error_detail(exc)
+        else:
+            detail = str(exc).strip()
         if detail:
             print_error(detail)
         print_warn("如果提示和 Docker 权限、运行中容器或路径有关，请先按脚本提示处理后重试。")
@@ -421,8 +453,14 @@ def run_action(description: str, action: Callable[[], None]) -> bool:
 
 
 def show_status() -> None:
-    require_command("docker")
-    run_command(["docker", "compose", "ps"])
+    require_docker_compose()
+    try:
+        result = run_command(["docker", "compose", "ps"], capture_output=True)
+    except subprocess.CalledProcessError as exc:
+        detail = subprocess_error_detail(exc)
+        raise DeployError(f"查看服务状态失败：{detail}") from exc
+    if result.stdout:
+        sys.stdout.write(result.stdout)
 
 
 def choose_log_service(mode: str) -> None:
