@@ -11,21 +11,19 @@
 推荐直接使用交互式入口：
 
 ```bash
-chmod +x scripts/*.sh
-./scripts/manage.sh
+python3 scripts/manage.py
 ```
 
 如果你更习惯直接执行命令：
 
 ```bash
-chmod +x scripts/*.sh
-./scripts/up.sh
+python3 scripts/up.py
 ```
 
 中国大陆服务器可改用：
 
 ```bash
-./scripts/up.sh --domestic
+python3 scripts/up.py --domestic
 ```
 
 ### 2. 打开管理页面
@@ -40,11 +38,11 @@ AstrBot 默认账号密码：
 
 ### 3. 登录 QQ
 
-打开 NapCat WebUI，完成 QQ 扫码登录。  
+打开 NapCat WebUI，完成 QQ 扫码登录。
 如果需要查看登录 Token 或二维码信息：
 
 ```bash
-./scripts/logs.sh napcat
+python3 scripts/logs.py napcat
 ```
 
 ### 4. 在 AstrBot 中创建 QQ 机器人
@@ -89,49 +87,43 @@ AstrBot 默认账号密码：
 启动：
 
 ```bash
-./scripts/up.sh
+python3 scripts/up.py
 ```
 
 国内模式启动：
 
 ```bash
-./scripts/up.sh --domestic
+python3 scripts/up.py --domestic
 ```
 
 查看全部日志：
 
 ```bash
-./scripts/logs.sh
+python3 scripts/logs.py
 ```
 
 查看 AstrBot 日志：
 
 ```bash
-./scripts/logs.sh astrbot
+python3 scripts/logs.py astrbot
 ```
 
 查看 NapCat 日志：
 
 ```bash
-./scripts/logs.sh napcat
+python3 scripts/logs.py napcat
 ```
 
 停止：
 
 ```bash
-./scripts/down.sh
+python3 scripts/down.py
 ```
 
 交互式管理：
 
 ```bash
-./scripts/manage.sh
-```
-
-脚本主流程自检：
-
-```bash
-./tests/shell/smoke.sh
+python3 scripts/manage.py
 ```
 
 ## 备份与恢复
@@ -139,35 +131,35 @@ AstrBot 默认账号密码：
 创建备份：
 
 ```bash
-./scripts/backup.sh
+python3 scripts/backup.py
 ```
 
 在线备份：
 
 ```bash
-./scripts/backup.sh --allow-live
+python3 scripts/backup.py --allow-live
 ```
 
 创建备份并仅保留最近 7 份：
 
 ```bash
-./scripts/backup.sh --keep 7
+python3 scripts/backup.py --keep 7
 ```
 
 恢复：
 
 ```bash
-./scripts/down.sh
-./scripts/restore.sh ./backups/qqbot-backup-YYYYmmdd-HHMMSS.tar.gz --force
-./scripts/up.sh
+python3 scripts/down.py
+python3 scripts/restore.py ./backups/qqbot-backup-YYYYmmdd-HHMMSS.tar.gz --force
+python3 scripts/up.py
 ```
 
 可选恢复部分数据：
 
 ```bash
-./scripts/restore.sh ./backups/qqbot-backup-YYYYmmdd-HHMMSS.tar.gz --force --only data
-./scripts/restore.sh ./backups/qqbot-backup-YYYYmmdd-HHMMSS.tar.gz --force --only napcat-qq
-./scripts/restore.sh ./backups/qqbot-backup-YYYYmmdd-HHMMSS.tar.gz --force --only config-files
+python3 scripts/restore.py ./backups/qqbot-backup-YYYYmmdd-HHMMSS.tar.gz --force --only data
+python3 scripts/restore.py ./backups/qqbot-backup-YYYYmmdd-HHMMSS.tar.gz --force --only napcat-qq
+python3 scripts/restore.py ./backups/qqbot-backup-YYYYmmdd-HHMMSS.tar.gz --force --only config-files
 ```
 
 默认备份内容：
@@ -212,7 +204,7 @@ AstrBot 默认账号密码：
 项目提供：
 
 - `.env.domestic.example`
-- `./scripts/up.sh --domestic`
+- `python3 scripts/up.py --domestic`
 
 这会把 AstrBot 镜像切到：
 
@@ -237,7 +229,7 @@ WATCHTOWER_SCHEDULE=0 0 5 * * *
 查看日志：
 
 ```bash
-./scripts/logs.sh watchtower
+python3 scripts/logs.py watchtower
 ```
 
 ### 持久化目录
@@ -260,20 +252,14 @@ WATCHTOWER_SCHEDULE=0 0 5 * * *
 ├── napcat
 │   ├── config
 │   └── qq
-├── scripts
-│   ├── backup.sh
-│   ├── down.sh
-│   ├── lib
-│   │   ├── archive.sh
-│   │   ├── common.sh
-│   │   └── ui.sh
-│   ├── logs.sh
-│   ├── manage.sh
-│   ├── restore.sh
-│   └── up.sh
-└── tests
-    └── shell
-        └── smoke.sh
+└── scripts
+    ├── backup.py
+    ├── deploy_lib.py
+    ├── down.py
+    ├── logs.py
+    ├── manage.py
+    ├── restore.py
+    └── up.py
 ```
 
 ## 风险和注意事项
